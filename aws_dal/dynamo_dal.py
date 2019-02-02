@@ -3,52 +3,8 @@ import boto3
 import json
 import uuid
 
-__ACTION_GET = 'get'
-__ACTION_GET_TAGS = 'get_tags'
-__ACTION_SET_DEFAULT_TAGS = 'set_tags_d'
-
-__DEFAULT_BUCKET = 'TrachyFamily'
 __DEFAULT_REGION = 'us-east-1'
 __DEFAULT_TABLE_NAME = 'Photo'
-
-__DEFAULT_TAG_LIST = [
-    {'Key': 'processed', 'Value': 'False'},
-    {'Key': 'people', 'Value': ''},
-    {'Key': 'location', 'Value': ''},
-    {'Key': 'date', 'Value': ''},
-    {'Key': 'meta', 'Value': ''},
-    {'Key': 'photoId', 'Value': ''}
-]
-
-s3 = boto3.resource('s3')
-trachy_bucket = s3.Bucket(__DEFAULT_BUCKET)
-
-def get_photo(photo_reference):
-    for resource in trachy_bucket.objects.filter(Prefix=photo_reference):
-        print('Retrieving photo from {}'.format(photo_reference))
-        r = resource.Object()
-        #print(r.__dict__)
-        pic = r.get()
-        print(pic)
-
-def get_tags_for_photo(photo_reference):
-    client = boto3.client('s3')
-    photo_tag_resp = client.get_object_tagging(
-        Bucket=__DEFAULT_BUCKET,
-        Key=photo_reference
-    )
-
-    return photo_tag_resp.get('TagSet')
-
-def apply_default_tag_set(photo_reference):
-    client = boto3.client('s3')
-    client.put_object_tagging(
-        Bucket=__DEFAULT_BUCKET,
-        Key=photo_reference,
-        Tagging={
-            'TagSet': __DEFAULT_TAG_LIST
-        }
-    )
 
 def dynamo_scan_test():
     client = boto3.client('dynamodb', region_name=__DEFAULT_REGION)
@@ -146,9 +102,3 @@ if __name__ == '__main__':
 
     if args.test_mode:
         get_dynamo_record_by_s3_location(args.photo)
-    elif args.action == __ACTION_GET:
-        get_photo(args.photo)
-    elif args.action == __ACTION_GET_TAGS:
-        print(json.dumps(get_tags_for_photo(args.photo)))
-    elif args.action == __ACTION_SET_DEFAULT_TAGS:
-        apply_default_tag_set(args.photo)
