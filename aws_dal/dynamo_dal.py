@@ -3,58 +3,69 @@ import boto3
 import json
 import uuid
 
+__ACTION_PUT_PHOTO = 'put'
+__ACTION_GET_BY_S3 = 'get_by_s3'
+__ACTION_GET_RECORD_BY_ID = 'get_by_id'
+__ACTION_GET_NEXT_PHOTO = 'next'
+
 __DEFAULT_REGION = 'us-east-1'
 __DEFAULT_TABLE_NAME = 'Photo'
 
-def dynamo_scan_test():
-    client = boto3.client('dynamodb', region_name=__DEFAULT_REGION)
-    documents = client.scan(
-        TableName=__DEFAULT_TABLE_NAME,
-        Limit=1
-    )
-    print(json.dumps(documents))
 
-def put_dynamo_record(dynamo_photo):
-    dynamodb = boto3.resource('dynamodb', region_name=__DEFAULT_REGION)
-    table = dynamodb.Table(__DEFAULT_TABLE_NAME)
-    response = table.put_item(
-        Item={
-            'photoId': dynamo_photo.photo_id,
-            'people': dynamo_photo.people,
-            'location': dynamo_photo.location,
-            'processed': bool(dynamo_photo.processed),
-            'meta': dynamo_photo.meta,
-            's3Location': dynamo_photo.s3_location
-        }
-    )
+class DynamoService():
+    def __init__(self, table_name='Photo', region='us-east-1'):
+        self.region = region
+        self.table_name = table_name
 
-def get_dynamo_record_by_s3_location(s3_location):
-    client = boto3.client('dynamodb', region_name=__DEFAULT_REGION)
-    documents = client.scan(
-        TableName=__DEFAULT_TABLE_NAME,
-        Limit=1,
-        FilterExpression='s3Location = :s3Location',
-        ExpressionAttributeValues={
-            ':s3Location': {
-                "S": s3_location
+    def get_next_unprocessed_photo(self):
+        client = boto3.client('dynamodb', region_name=self.region)
+        documents = client.scan(
+            TableName=self.table_name,
+            Limit=1
+        )
+        print(json.dumps(documents))
+
+    def put_dynamo_record(self, dynamo_photo):
+        dynamodb = boto3.resource('dynamodb', region_name=self.region)
+        table = dynamodb.Table(self.table_name)
+        response = table.put_item(
+            Item={
+                'photoId': dynamo_photo.photo_id,
+                'people': dynamo_photo.people,
+                'location': dynamo_photo.location,
+                'processed': bool(dynamo_photo.processed),
+                'meta': dynamo_photo.meta,
+                's3Location': dynamo_photo.s3_location
             }
-        }
+        )
 
-    )
-    print(json.dumps(documents))
-
-
-def get_dynamo_record_by_id():
-    client = boto3.client('dynamodb', region_name=__DEFAULT_REGION)
-    document = client.get_item(
-        TableName=__DEFAULT_TABLE_NAME,
-        Key={
-            'photoId': {
-                'S': 'b47b05c4-a355-404e-b3b0-6b6f62c0a899'
+    def get_dynamo_record_by_s3_location(self, s3_location):
+        client = boto3.client('dynamodb', region_name=self.region)
+        documents = client.scan(
+            TableName=self.table_name,
+            Limit=1,
+            FilterExpression='s3Location = :s3Location',
+            ExpressionAttributeValues={
+                ':s3Location': {
+                    "S": s3_location
+                }
             }
-        }
-    )
-    return document.get('Item')
+
+        )
+        print(json.dumps(documents))
+
+
+    def get_dynamo_record_by_id(self):
+        client = boto3.client('dynamodb', region_name=self.region)
+        document = client.get_item(
+            TableName=self.table_name,
+            Key={
+                'photoId': {
+                    'S': 'b47b05c4-a355-404e-b3b0-6b6f62c0a899'
+                }
+            }
+        )
+        return document.get('Item')
 
 
 class DynamoPhoto:
@@ -88,9 +99,11 @@ class DynamoPhoto:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Gathering arguments')
-    parser.add_argument('-a', action='store', dest='action', required=False, default=__ACTION_GET,
+    parser.add_argument('-a', action='store', dest='action', required=False, default=__ACTION_GET_RECORD_BY_ID,
                         help='The action to perform, default={}. Options = {}, {}, {}'.format(
-                            __ACTION_GET, __ACTION_GET, __ACTION_GET_TAGS, __ACTION_SET_DEFAULT_TAGS))
+                            __ACTION_GET_RECORD_BY_ID, __ACTION_GET_BY_S3,
+                            __ACTION_GET_RECORD_BY_ID, __ACTION_PUT_PHOTO,
+                            __ACTION_GET_NEXT_PHOTO))
     parser.add_argument('-p', action='store', dest='photo', required=False,
                         help='The photo to take action on - if the action requires specifying a photo')
     parser.add_argument('-t', '--test_mode', action='store_true',
@@ -100,5 +113,18 @@ if __name__ == '__main__':
     if args.photo is None:
         args.photo = 'Photos/Photos from James iPhone/September 2014 dump/2014-09-20 15.39.40.jpg'
 
-    if args.test_mode:
-        get_dynamo_record_by_s3_location(args.photo)
+    ds = DynamoService()
+    if args.action == __ACTION_GET_RECORD_BY_ID:
+        ds.get_dynamo_record_by_id()
+    elif args.action == __ACTION_GET_BY_S3:
+        ds.get_dynamo_record_by_s3_location(args.photo)
+    elif args.action == __ACTION_PUT_PHOTO:
+        ds.put_dynamo_record(DynamoPhoto(
+            'Teri,Lauren',
+            'Zoo',
+            'False',
+            'what a cool day',
+            args.photo
+        ))
+    elif args.action == __ACTION_GET_NEXT_PHOTO:
+        print('hi')
